@@ -20,8 +20,11 @@ def get_base_image(dockerfile):
 #datetime.datetime.fromtimestamp(os.path.getmtime('/tmp/doit/dodo.py'))
 
 def get_image_creation_datetime(image_name):
-    output = subprocess.check_output(['docker', 'inspect', image_name, '-f', '{{.Created}}']).decode('UTF-8').split('.')[0]
-    return datetime.strptime(output, '%Y-%m-%dT%H:%M:%S')
+    try:
+        output = subprocess.check_output(['docker', 'inspect', image_name, '-f', '{{.Created}}']).decode('UTF-8').split('.')[0]
+        return datetime.strptime(output, '%Y-%m-%dT%H:%M:%S')
+    except:
+        return datetime.fromtimestamp(0)
 
 def task_build_image():
     #print(get_base_image('docker/base/Dockerfile'))
@@ -43,7 +46,8 @@ def task_build_image():
             'verbosity': 2,
             'actions': ["docker build -t {} ./{}".format(image_name, dockerfile_path)],
         }
-        print("has_known_base_image({}) = {}".format(dockerfile, has_known_base_image(dockerfile)))
+        base_image = get_base_image(dockerfile)
+        print("has_known_base_image({}) [{}] = {}".format(dockerfile, base_image, has_known_base_image(dockerfile)))
         if not has_known_base_image(dockerfile):
             # In case the base image is not defined by us, we `docker build` it every time. Docker will only rebuild
             # the layers that are not cached in this case
@@ -51,7 +55,6 @@ def task_build_image():
             yield task_desc
         else:
             # Otherwise, we rebuild the ...
-            base_image = get_base_image(dockerfile)
             task_desc['uptodate'] = [image_newer_than_file(dockerfile, base_image)]
             task_desc['task_dep'] = ['build_image:{}'.format(base_image)]
             yield task_desc
