@@ -1,30 +1,26 @@
 import re
 import os
-import subprocess
+#import subprocess
+import docker
 from datetime import datetime
+from dockerfile_parse import DockerfileParser
 
 # Map of image_name to Dockerfile path
 IMAGES = {'dummy_base': 'docker/base', 
           'dummy_derived': 'docker/derived', 
           'dummy_derived2': 'docker/derived2'}
 
-def get_base_image(dockerfile):
-    """Get the base image from a Dockerfile"""
-    with open(dockerfile) as f:
-        for line in map(lambda x: x.strip(), f):
-            match = re.compile('^FROM +([^ ]+)$').match(line)
-            if match:
-                return match[1]
-    raise Exception("{} has no base image".format(dockerfile))
+docker_client = docker.from_env()
 
-#datetime.datetime.fromtimestamp(os.path.getmtime('/tmp/doit/dodo.py'))
+def get_base_image(dockerfile):
+    return DockerfileParser(dockerfile).baseimage
 
 def get_image_creation_datetime(image_name):
     try:
-        output = subprocess.check_output(['docker', 'inspect', image_name, '-f', '{{.Created}}']).decode('UTF-8').split('.')[0]
-        return datetime.strptime(output, '%Y-%m-%dT%H:%M:%S')
-    except:
-        return datetime.fromtimestamp(0)
+        creation_timestamp = docker_client.images.get(image_name).history()[0]['Created']
+    except docker.errors.ImageNotFound:
+        creation_timestamp = 0
+    return datetime.fromtimestamp(creation_timestamp)
 
 def task_build_image():
     #print(get_base_image('docker/base/Dockerfile'))
